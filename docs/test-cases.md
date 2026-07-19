@@ -39,6 +39,7 @@
 | DEF-001 | migration | DBAL 4 affected red／fixed green | 歷史 gate | [QA-001](./defects/QA-001-dbal4-migration.md) |
 | DEF-002 | API／PostgreSQL | JSONB affected raw replay red／JSON fixed green | 歷史 gate | [QA-002](./defects/QA-002-idempotency-replay.md) |
 | DEF-003 | container | dotenv affected build red／fixed build+smoke green | 歷史 gate | [QA-003](./defects/QA-003-container-dotenv.md) |
+| DEF-004 | Web／PostgreSQL | authentication audit 空 metadata 阻斷所有 Web 登入 | 是；open | [QA-004](./defects/QA-004-auth-audit-metadata.md) |
 
 ## 環境與 release gate
 
@@ -224,3 +225,7 @@ affected/fixed SHA、精確 failure signature、重現與 retest 證據見 [QA-0
 ### DEF-003 — production container dotenv
 
 build context、精確 `Dotenv PathException` 與 fixed build/smoke 見 [QA-003](./defects/QA-003-container-dotenv.md)。本案例是 CI/release defect 證據，不描述成 production outage。
+
+### DEF-004 — authentication audit metadata
+
+本輪 release gate 的環境、六平台重現、PostgreSQL signature、根因鏈與待 retest 範圍見 [QA-004](./defects/QA-004-auth-audit-metadata.md)。這是 open current-release blocker，不是 historical expected failure。

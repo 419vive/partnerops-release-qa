@@ -19,6 +19,7 @@
 | RISK-007 | UI/API 與持久資料／audit 不一致 | 錯誤狀態、不可稽核 | 是 | API-002、API-006、WEB-002、DB-001 |
 | RISK-008 | skipped／not-run 被算成 passed | 錯誤放行決策 | 是 | CI-001、REP-001 |
 | RISK-009 | log／artifact／tracked file 洩漏秘密 | credential exposure | 是 | ENV-003–004、SEC-001、CI-001 |
+| RISK-010 | authentication audit 的空 metadata 與 DB object constraint 不一致 | 所有 Web 登入回 500 | 是 | WEB-001、WEB-002、MWEB-001、DEF-004 |
 
 OBS-001（quickstart 對 overdue count 的描述與實作不一致）只記為文件／可測試性觀察；WEB-002 使用相對 delta，不把它描述成 production incident。詳見 [測試計畫](./test-plan.md#9-已知限制與觀察)。
 
@@ -69,6 +70,7 @@ OBS-001（quickstart 對 overdue count 的描述與實作不一致）只記為�
 | DEF-001 | FR-001、FR-010、FR-011 | historical `dbal-migration` job |
 | DEF-002 | FR-001、FR-008、FR-010、FR-011 | historical `idempotency-replay` job |
 | DEF-003 | FR-001、FR-010、FR-011 | historical `production-container` job |
+| DEF-004 | FR-005、FR-006、FR-009、FR-017 | final release Web projects + [QA-004](./defects/QA-004-auth-audit-metadata.md) |
 
 ## 執行結果連結規則
 
