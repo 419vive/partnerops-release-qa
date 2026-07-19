@@ -1,0 +1,99 @@
+name: Release QA
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-qa-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-gate:
+    name: Final release gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      COMPOSE_PROJECT_NAME: partnerops_release_qa
+      KEEP_SUT_RUNNING: "1"
+      SUT_DIR: .sut/partnerops
+      SUT_REF: 5c855e8428c48fccfeadac7d4f24b0a3e7ac1c65
+
+    steps:
+      - name: Checkout QA harness
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Checkout immutable PartnerOps release
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          repository: 419vive/partnerops
+          ref: 5c855e8428c48fccfeadac7d4f24b0a3e7ac1c65
+          path: .sut/partnerops
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify SUT revision
+        run: |
+          set -euo pipefail
+          mkdir -p results
+          actual_ref="$(git -C "$SUT_DIR" rev-parse HEAD)"
+          test "$actual_ref" = "$SUT_REF"
+          printf '%s\n' "$actual_ref" | tee results/sut-revision.txt
+          printf '### Final release QA\n\n- PartnerOps revision: `%s`\n' "$actual_ref" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install QA dependencies
+        run: npm ci
+
+      - name: Install Chromium, Firefox, and WebKit
+        run: npx playwright install --with-deps chromium firefox webkit
+
+      - name: Validate QA harness
+        run: npm run qa:check
+
+      - name: Run blocking release gate
+        run: npm run qa:release
+
+      - name: Capture sanitized runtime logs on failure
+        if: failure()
+        run: |
+          mkdir -p results/runtime
+          docker compose \
+            --project-directory "$SUT_DIR" \
+            --project-name "$COMPOSE_PROJECT_NAME" \
+            logs --no-color 2>&1 \
+            | sed -E \
+                -e 's#postgresql://[^@[:space:]]+@#postgresql://***@#g' \
+                -e 's#(APP_SECRET|API_TOKEN_PEPPER)=[^[:space:]]+#\1=***#g' \
+            > results/runtime/compose.log || true
+          docker ps -a \
+            --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" \
+            --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}' \
+            > results/runtime/containers.txt || true
+
+      - name: Upload QA evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-qa-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+            results/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Clean up disposable SUT
+        if: always()
+        continue-on-error: true
+        run: npm run qa:down

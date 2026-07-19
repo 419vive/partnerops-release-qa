@@ -1,0 +1,28 @@
+{
+  "name": "partnerops-release-qa",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Risk-based release QA evidence for the public PartnerOps system.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "playwright test",
+    "test:api": "playwright test --project=api",
+    "test:web": "playwright test --project=chromium --project=firefox --project=webkit --project=mobile-web-pixel-7 --project=mobile-web-iphone-13",
+    "test:shell": "node --test tests/scripts/qa-script.test.mjs",
+    "qa:check": "bash scripts/qa.sh check",
+    "qa:up": "bash scripts/qa.sh up",
+    "qa:test": "bash scripts/qa.sh test",
+    "qa:sql": "bash scripts/qa.sh sql",
+    "qa:down": "bash scripts/qa.sh down",
+    "qa:release": "bash scripts/qa.sh release"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "@types/node": "22.20.1",
+    "typescript": "7.0.2"
+  }
+}

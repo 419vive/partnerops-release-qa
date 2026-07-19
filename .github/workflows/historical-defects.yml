@@ -1,0 +1,443 @@
+name: Historical Defects
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dbal-migration:
+    name: QA-001 DBAL migration affected/fixed gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-bookworm
+        env:
+          POSTGRES_DB: partnerops_test
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d partnerops_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      API_TOKEN_PEPPER: qa-synthetic-token-pepper
+      APP_DEBUG: "0"
+      APP_ENV: test
+      APP_SECRET: qa-synthetic-app-secret
+      APP_TIMEZONE: Asia/Taipei
+      DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/partnerops_test?serverVersion=16&charset=utf8"
+      DEFAULT_URI: http://127.0.0.1:8080
+
+    steps:
+      - name: Checkout QA harness
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Checkout affected PartnerOps revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          repository: 419vive/partnerops
+          ref: 7079d99ae802a32ffaa82b2390e858e26d065aed
+          path: .sut/qa-001-affected
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout fixed PartnerOps revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          repository: 419vive/partnerops
+          ref: 6aa9546187e91bda44b8481dedcd3b7ed430238a
+          path: .sut/qa-001-fixed
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Record immutable evidence sources
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/historical/qa-001
+          test "$(git -C .sut/qa-001-affected rev-parse HEAD)" = "7079d99ae802a32ffaa82b2390e858e26d065aed"
+          test "$(git -C .sut/qa-001-fixed rev-parse HEAD)" = "6aa9546187e91bda44b8481dedcd3b7ed430238a"
+          printf '%s\n' \
+            'Affected: https://github.com/419vive/partnerops/commit/7079d99ae802a32ffaa82b2390e858e26d065aed' \
+            'Fixed: https://github.com/419vive/partnerops/commit/6aa9546187e91bda44b8481dedcd3b7ed430238a' \
+            'Affected upstream run: https://github.com/419vive/partnerops/actions/runs/29640902228' \
+            'Fixed migration step (overall run later failed schema validation): https://github.com/419vive/partnerops/actions/runs/29641007621' \
+            > artifacts/historical/qa-001/sources.txt
+
+      - name: Set up PHP and Composer
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: "8.4"
+          extensions: ctype, iconv, intl, mbstring, opcache, pdo_pgsql
+          coverage: none
+          tools: composer:2.10.2
+
+      - name: Install affected and fixed dependencies
+        run: |
+          composer install --working-dir=.sut/qa-001-affected --prefer-dist --no-interaction --no-progress
+          composer install --working-dir=.sut/qa-001-fixed --prefer-dist --no-interaction --no-progress
+
+      - name: Reproduce affected DBAL migration failure
+        run: |
+          set -uo pipefail
+          set +e
+          (
+            cd .sut/qa-001-affected
+            php bin/console doctrine:migrations:migrate --env=test --no-interaction
+          ) 2>&1 | tee artifacts/historical/qa-001/affected.log
+          gate_status=${PIPESTATUS[0]}
+          set -e
+
+          if (( gate_status == 0 )); then
+            echo 'Affected revision unexpectedly passed the migration gate.' >&2
+            exit 1
+          fi
+          if ! grep -Fq 'Call to undefined method Doctrine\DBAL\Platforms\PostgreSQL120Platform::getName()' artifacts/historical/qa-001/affected.log; then
+            echo 'Affected revision failed with an unexpected signature.' >&2
+            exit 1
+          fi
+          printf 'affected=expected-failure\nsignature=PostgreSQL120Platform::getName() undefined\n' \
+            > artifacts/historical/qa-001/outcome.txt
+
+      - name: Reset database for fixed revision
+        run: |
+          php -r '$pdo = new PDO("pgsql:host=127.0.0.1;port=5432;dbname=postgres", "postgres", "postgres", [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]); $pdo->exec("DROP DATABASE IF EXISTS partnerops_test WITH (FORCE)"); $pdo->exec("CREATE DATABASE partnerops_test");'
+
+      - name: Verify fixed DBAL migration gate
+        run: |
+          set -euo pipefail
+          (
+            cd .sut/qa-001-fixed
+            php bin/console doctrine:migrations:migrate --env=test --no-interaction
+          ) 2>&1 | tee artifacts/historical/qa-001/fixed.log
+          printf 'fixed=passed\n' >> artifacts/historical/qa-001/outcome.txt
+          printf '### QA-001 DBAL migration\n\n- Affected: expected signature reproduced\n- Fixed: same migration gate passed\n' \
+            >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload QA-001 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: qa-001-dbal-migration-${{ github.run_id }}
+          path: artifacts/historical/qa-001/
+          if-no-files-found: error
+          retention-days: 30
+
+  idempotency-replay:
+    name: QA-002 byte-identical replay affected/fixed gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-bookworm
+        env:
+          POSTGRES_DB: partnerops_test
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d partnerops_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      API_TOKEN_PEPPER: qa-synthetic-token-pepper
+      APP_DEBUG: "0"
+      APP_ENV: test
+      APP_SECRET: qa-synthetic-app-secret
+      APP_TIMEZONE: Asia/Taipei
+      DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/partnerops_test?serverVersion=16&charset=utf8"
+      DEFAULT_URI: http://127.0.0.1:8080
+
+    steps:
+      - name: Checkout QA harness
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Checkout affected PartnerOps revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          repository: 419vive/partnerops
+          ref: 6aa9546187e91bda44b8481dedcd3b7ed430238a
+          path: .sut/qa-002-affected
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout fixed PartnerOps revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          repository: 419vive/partnerops
+          ref: c4e794a83a4536bb40627f0b34e0ec8ed161b03e
+          path: .sut/qa-002-fixed
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Record immutable evidence sources
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/historical/qa-002
+          test "$(git -C .sut/qa-002-affected rev-parse HEAD)" = "6aa9546187e91bda44b8481dedcd3b7ed430238a"
+          test "$(git -C .sut/qa-002-fixed rev-parse HEAD)" = "c4e794a83a4536bb40627f0b34e0ec8ed161b03e"
+          printf '%s\n' \
+            'Affected: https://github.com/419vive/partnerops/commit/6aa9546187e91bda44b8481dedcd3b7ed430238a' \
+            'Affected upstream run (stopped at a later schema gate; not replay proof): https://github.com/419vive/partnerops/actions/runs/29641007621' \
+            'Fixed: https://github.com/419vive/partnerops/commit/c4e794a83a4536bb40627f0b34e0ec8ed161b03e' \
+            'Fixed migration invariant steps: https://github.com/419vive/partnerops/actions/runs/29642501363' \
+            > artifacts/historical/qa-002/sources.txt
+
+      - name: Set up PHP and Composer
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: "8.4"
+          extensions: ctype, iconv, intl, mbstring, opcache, pdo_pgsql
+          coverage: none
+          tools: composer:2.10.2
+
+      - name: Install affected and fixed dependencies
+        run: |
+          composer install --working-dir=.sut/qa-002-affected --prefer-dist --no-interaction --no-progress
+          composer install --working-dir=.sut/qa-002-fixed --prefer-dist --no-interaction --no-progress
+
+      - name: Reproduce affected and verify fixed raw replay gate
+        run: |
+          set -euo pipefail
+
+          reset_database() {
+            php -r '$pdo = new PDO("pgsql:host=127.0.0.1;port=5432;dbname=postgres", "postgres", "postgres", [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]); $pdo->exec("DROP DATABASE IF EXISTS partnerops_test WITH (FORCE)"); $pdo->exec("CREATE DATABASE partnerops_test");'
+          }
+
+          raw_replay_gate() {
+            EXPECTED_RESPONSE_TYPE="$1" EXPECTED_REPLAY_RESULT="$2" php <<'PHP'
+          <?php
+          declare(strict_types=1);
+
+          $pdo = new PDO(
+              'pgsql:host=127.0.0.1;port=5432;dbname=partnerops_test',
+              'postgres',
+              'postgres',
+              [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
+          );
+          $responseType = $pdo->query(<<<'SQL'
+              SELECT data_type
+              FROM information_schema.columns
+              WHERE table_schema = current_schema()
+                AND table_name = 'idempotency_record'
+                AND column_name = 'response_body'
+              SQL)->fetchColumn();
+          $expectedType = getenv('EXPECTED_RESPONSE_TYPE');
+          if (!is_string($responseType) || $responseType !== $expectedType) {
+              throw new RuntimeException(sprintf('Unexpected response_body type: %s', var_export($responseType, true)));
+          }
+
+          $pdo->exec(<<<'SQL'
+              INSERT INTO client
+                  (id, public_id, name, slug, is_archived, archived_at, created_at, updated_at)
+              VALUES
+                  (1001, '01J0000000000000000000000', 'QA Client', 'qa-client', FALSE, NULL, NOW(), NOW());
+
+              INSERT INTO app_user
+                  (id, public_id, email, password_hash, display_name, role, client_id,
+                   is_active, deactivated_at, created_at, updated_at)
+              VALUES
+                  (1002, '01J0000000000000000000001', 'qa-admin@example.test', 'synthetic-hash',
+                   'QA Admin', 'admin', NULL, TRUE, NULL, NOW(), NOW());
+
+              INSERT INTO api_credential
+                  (id, public_id, client_id, name, selector, token_prefix, secret_hash,
+                   last_used_at, revoked_at, created_by_id, created_at)
+              VALUES
+                  (1003, '01J0000000000000000000002', 1001, 'QA credential', 'qaselector',
+                   'qa.synthetic', repeat('a', 64), NULL, NULL, 1002, NOW());
+
+              INSERT INTO service_request
+                  (id, public_id, client_id, requester_id, created_by_credential_id, assignee_id,
+                   title, description, priority, status, due_at, resolved_at, closed_at,
+                   version, created_at, updated_at)
+              VALUES
+                  (1004, '01J0000000000000000000003', 1001, NULL, 1003, NULL,
+                   'QA replay request', 'Synthetic byte replay fixture.', 'high', 'new',
+                   NULL, NULL, NULL, 1, NOW(), NOW());
+              SQL);
+
+          $expectedBody = '{"id":"01J0000000000000000000003","title":"QA replay request","description":"Synthetic byte replay fixture.","priority":"high","status":"new","dueAt":null,"assignee":null,"createdAt":"2026-07-18T00:00:00Z","updatedAt":"2026-07-18T00:00:00Z","comments":[],"commentsPagination":{"page":1,"perPage":50,"total":0,"pages":1}}';
+          $cast = $responseType === 'jsonb' ? 'JSONB' : 'JSON';
+          $statement = $pdo->prepare(sprintf(<<<'SQL'
+              INSERT INTO idempotency_record
+                  (api_credential_id, idempotency_key, request_fingerprint, service_request_id,
+                   response_status, response_body, created_at, expires_at)
+              VALUES
+                  (1003, 'qa-byte-replay', :fingerprint, 1004, 201, CAST(:body AS %s),
+                   NOW(), NOW() + INTERVAL '24 hours')
+              SQL, $cast));
+          $statement->execute([
+              'fingerprint' => str_repeat('b', 64),
+              'body' => $expectedBody,
+          ]);
+
+          $actualBody = $pdo->query(<<<'SQL'
+              SELECT response_body::text
+              FROM idempotency_record
+              WHERE idempotency_key = 'qa-byte-replay'
+              SQL)->fetchColumn();
+          if (!is_string($actualBody)) {
+              throw new RuntimeException('Stored replay body is missing.');
+          }
+
+          $expectedResult = getenv('EXPECTED_REPLAY_RESULT');
+          if ($expectedResult === 'different') {
+              if ($actualBody === $expectedBody) {
+                  throw new RuntimeException('Affected revision unexpectedly preserved the raw response.');
+              }
+              $expectedValues = json_decode($expectedBody, true, flags: JSON_THROW_ON_ERROR);
+              $actualValues = json_decode($actualBody, true, flags: JSON_THROW_ON_ERROR);
+              if ($actualValues != $expectedValues || array_keys($actualValues) === array_keys($expectedValues)) {
+                  throw new RuntimeException('Raw mismatch was not the documented JSONB key reordering.');
+              }
+              fwrite(STDERR, "QA-002: replay raw response differs after JSONB reorders keys\n");
+              exit(42);
+          }
+
+          if ($expectedResult !== 'identical' || $actualBody !== $expectedBody) {
+              throw new RuntimeException('Fixed revision did not preserve a byte-identical replay body.');
+          }
+          fwrite(STDOUT, "QA-002 fixed gate: byte-identical replay preserved.\n");
+          PHP
+          }
+
+          reset_database
+          (
+            cd .sut/qa-002-affected
+            php bin/console doctrine:migrations:migrate --env=test --no-interaction
+          ) 2>&1 | tee artifacts/historical/qa-002/affected-migration.log
+
+          set +e
+          raw_replay_gate jsonb different 2>&1 | tee artifacts/historical/qa-002/affected.log
+          affected_status=${PIPESTATUS[0]}
+          set -e
+          if (( affected_status != 42 )); then
+            echo "Affected replay gate returned unexpected status: $affected_status" >&2
+            exit 1
+          fi
+          grep -Fxq 'QA-002: replay raw response differs after JSONB reorders keys' \
+            artifacts/historical/qa-002/affected.log
+
+          reset_database
+          (
+            cd .sut/qa-002-fixed
+            php bin/console doctrine:migrations:migrate --env=test --no-interaction
+          ) 2>&1 | tee artifacts/historical/qa-002/fixed-migration.log
+          raw_replay_gate json identical 2>&1 | tee artifacts/historical/qa-002/fixed.log
+
+          printf 'affected=expected-failure\nfixed=passed\nsignature=QA-002: replay raw response differs after JSONB reorders keys\n' \
+            > artifacts/historical/qa-002/outcome.txt
+          printf '### QA-002 byte-identical replay\n\n- Affected: controlled status 42 and exact signature reproduced\n- Fixed: the same raw-body gate passed\n' \
+            >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload QA-002 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: qa-002-idempotency-replay-${{ github.run_id }}
+          path: artifacts/historical/qa-002/
+          if-no-files-found: error
+          retention-days: 30
+
+  production-container:
+    name: QA-003 production container affected/fixed gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout QA harness
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Checkout affected PartnerOps revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          repository: 419vive/partnerops
+          ref: c4e794a83a4536bb40627f0b34e0ec8ed161b03e
+          path: .sut/qa-003-affected
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout fixed PartnerOps revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          repository: 419vive/partnerops
+          ref: 5c855e8428c48fccfeadac7d4f24b0a3e7ac1c65
+          path: .sut/qa-003-fixed
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Record immutable evidence sources
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/historical/qa-003
+          test "$(git -C .sut/qa-003-affected rev-parse HEAD)" = "c4e794a83a4536bb40627f0b34e0ec8ed161b03e"
+          test "$(git -C .sut/qa-003-fixed rev-parse HEAD)" = "5c855e8428c48fccfeadac7d4f24b0a3e7ac1c65"
+          printf '%s\n' \
+            'Affected: https://github.com/419vive/partnerops/commit/c4e794a83a4536bb40627f0b34e0ec8ed161b03e' \
+            'Fixed: https://github.com/419vive/partnerops/commit/5c855e8428c48fccfeadac7d4f24b0a3e7ac1c65' \
+            'Affected upstream run: https://github.com/419vive/partnerops/actions/runs/29642501363' \
+            'Fixed upstream run: https://github.com/419vive/partnerops/actions/runs/29642823042' \
+            > artifacts/historical/qa-003/sources.txt
+
+      - name: Reproduce affected production build failure
+        run: |
+          set -uo pipefail
+          set +e
+          docker build \
+            --target production \
+            --tag partnerops-qa-003-affected \
+            .sut/qa-003-affected 2>&1 \
+            | sed -E \
+                -e 's#postgresql://[^@[:space:]]+@#postgresql://***@#g' \
+                -e 's#(APP_SECRET|API_TOKEN_PEPPER)=[^[:space:]]+#\1=***#g' \
+            | tee artifacts/historical/qa-003/affected.log
+          gate_status=${PIPESTATUS[0]}
+          set -e
+
+          if (( gate_status == 0 )); then
+            echo 'Affected revision unexpectedly built the production image.' >&2
+            exit 1
+          fi
+          if ! grep -Fq 'Symfony\Component\Dotenv\Exception\PathException: Unable to read the "/var/www/html/.env" environment file.' artifacts/historical/qa-003/affected.log; then
+            echo 'Affected revision failed with an unexpected signature.' >&2
+            exit 1
+          fi
+          printf 'affected=expected-failure\nsignature=Unable to read /var/www/html/.env\n' \
+            > artifacts/historical/qa-003/outcome.txt
+
+      - name: Verify fixed production build gate
+        run: |
+          set -euo pipefail
+          docker build \
+            --target production \
+            --tag partnerops-qa-003-fixed \
+            .sut/qa-003-fixed 2>&1 \
+            | sed -E \
+                -e 's#postgresql://[^@[:space:]]+@#postgresql://***@#g' \
+                -e 's#(APP_SECRET|API_TOKEN_PEPPER)=[^[:space:]]+#\1=***#g' \
+            | tee artifacts/historical/qa-003/fixed.log
+          printf 'fixed=passed\n' >> artifacts/historical/qa-003/outcome.txt
+          printf '### QA-003 production container\n\n- Affected: expected dotenv signature reproduced\n- Fixed: same production build gate passed\n' \
+            >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload QA-003 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: qa-003-production-container-${{ github.run_id }}
+          path: artifacts/historical/qa-003/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Clean up historical images
+        if: always()
+        continue-on-error: true
+        run: docker image rm --force partnerops-qa-003-affected partnerops-qa-003-fixed
