@@ -2,7 +2,7 @@
 
 | 欄位 | 內容 |
 |---|---|
-| 狀態 | Fixed；production build 與 runtime smoke passed |
+| 狀態 | Fixed；upstream production build/runtime smoke 與 dedicated affected/fixed build pair passed |
 | Severity | **S2 High** — production image 無法產生，直接阻擋 release |
 | 類型 | Container build／environment contract |
 | 重現案例 | DEF-003 |
@@ -65,11 +65,12 @@ APP_RUNTIME_OPTIONS='{"disable_dotenv":true}'
 
 1. [Affected upstream CI run 29642501363](https://github.com/419vive/partnerops/actions/runs/29642501363) 的 `Build production container` 觀察到上述 exact `PathException`；run conclusion 為 failure，runtime smoke 被 skipped。
 2. [Fixed upstream CI run 29642823042](https://github.com/419vive/partnerops/actions/runs/29642823042) 在 exact fixed SHA 通過 `Build production container`，接著通過 `Smoke-test production container`；run conclusion 為 success。因此 defect-specific retest 與完整 upstream regression 均 **PASS**。
+3. [Portfolio run 29685454964](https://github.com/419vive/partnerops-release-qa/actions/runs/29685454964) 重現 affected dotenv `PathException`，並使 fixed production build gate 通過；artifact：[`qa-003-production-container-29685454964`](https://github.com/419vive/partnerops-release-qa/actions/runs/29685454964/artifacts/8441938857)。
 
-獨立 portfolio workflow 的 `production-container` job 會執行 `Reproduce affected production build failure` 與 `Verify fixed production container gate`；affected 若 build 通過或出現不同 failure signature，job 必須失敗以揭露 runner drift。
+獨立 portfolio workflow 的 `production-container` job 已執行 `Reproduce affected production build failure` 與 `Verify fixed production build gate`；affected exact signature 與 fixed build 均符合 gate。affected 若 build 通過或出現不同 failure signature，job 仍會失敗以揭露 runner drift。
 
 ## Retest 限制
 
-- Public run 證明 CI build 與該 workflow 的 runtime smoke，不等同長時間 production traffic、orchestrator rollout 或 recovery 測試。
+- Runtime smoke 證據來自 upstream run 29642823042；portfolio historical job 只驗證 affected/fixed production build gate。兩者都不等同長時間 production traffic、orchestrator rollout 或 recovery 測試。
 - 今日重跑可能受 base image／registry 變動影響；只有 exact `Dotenv PathException` 算 QA-003 reproduced。
 - 安全修復是停用 container 內 dotenv 並使用 process environment；把 `.env` 複製進 image 不可接受，也不算替代修復。

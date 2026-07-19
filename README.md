@@ -10,8 +10,8 @@
 | 項目 | 狀態 |
 |---|---|
 | 本機靜態 gate | **PASS** — typecheck、13 個 Playwright executions discovery、4 個 shell contracts、public-file scan |
-| 最終 Web／API／PostgreSQL gate | **FAIL** — API 7/7 passed；6 個 Web executions 因登入 audit constraint 同時失敗；SQL fail-fast 未執行 |
-| 歷史缺陷 affected／fixed pair | **NOT RUN** — 發布後手動執行 |
+| 最終 Web／API／PostgreSQL gate | **FAIL** — API 7/7 passed；6 個 Web executions 皆因同一登入 audit constraint 失敗；SQL fail-fast 未執行 |
+| 歷史缺陷 affected／fixed pair | **PASS** — [Historical Defects run 29685454964](https://github.com/419vive/partnerops-release-qa/actions/runs/29685454964)；3/3 jobs passed，affected exact signatures reproduced、fixed gates passed |
 | 目前建議 | **NO-GO** — [QA-004](docs/defects/QA-004-auth-audit-metadata.md) 是 S2 release blocker；剩餘 SQL scope 亦不完整 |
 
 最新、可稽核的數量與判斷以 [release report](docs/reports/release-5c855e8.md) 為準；required scope 只要 failed、skipped 或 not-run，不會被包裝成通過。
@@ -36,7 +36,7 @@
 - API：health、認證、RFC 9457 validation、建立／讀取、跨客戶 404、冪等 replay、409 conflict。
 - PostgreSQL：tenant ownership、單一 idempotency record、`request.created` audit 與 database constraints。
 - CI：乾淨 checkout、full SHA 驗證、migration、fixtures、evidence upload、失敗診斷與專屬 volume cleanup。
-- Defect lifecycle：三筆公開 release defect 的 affected/fixed 驗證，與正常綠色 release gate 分離。
+- Defect lifecycle：三筆公開 release defect 的 affected/fixed 驗證，與當前 release gate 分離。
 
 Pixel／iPhone 專案是 **mobile-web emulation**，不是原生 Android／iOS App、模擬器或實體手機測試。
 
@@ -44,10 +44,10 @@ Pixel／iPhone 專案是 **mobile-web emulation**，不是原生 Android／iOS A
 
 | ID | Release blocker | Affected → fixed | 公開證據 |
 |---|---|---|---|
-| [QA-004](docs/defects/QA-004-auth-audit-metadata.md) | 空 PHP metadata 變成 JSON `[]`，所有 Web authentication audit 違反 object constraint | `5c855e8` → **open** | 本 repo [No-Go run 29684970834](https://github.com/419vive/partnerops-release-qa/actions/runs/29684970834)：API 7 passed、Web 6 failed |
-| [QA-001](docs/defects/QA-001-dbal4-migration.md) | DBAL 4 移除 `getName()`，乾淨 migration fatal | `7079d99` → `6aa9546` | [affected run 29640902228](https://github.com/419vive/partnerops/actions/runs/29640902228)；fixed migration step [29641007621](https://github.com/419vive/partnerops/actions/runs/29641007621) |
-| [QA-002](docs/defects/QA-002-idempotency-replay.md) | JSONB 重排 key，破壞 byte-identical replay | `6aa9546` → `c4e794a` | fixed predecessor/replay gates [29642501363](https://github.com/419vive/partnerops/actions/runs/29642501363)；affected pair 待本 repo workflow |
-| [QA-003](docs/defects/QA-003-container-dotenv.md) | production image build 依賴被排除的 `.env` | `c4e794a` → `5c855e8` | [affected run 29642501363](https://github.com/419vive/partnerops/actions/runs/29642501363)；[fixed run 29642823042](https://github.com/419vive/partnerops/actions/runs/29642823042) |
+| [QA-004](docs/defects/QA-004-auth-audit-metadata.md) | 空 PHP metadata 變成 JSON `[]`，所有 Web authentication audit 違反 object constraint | `5c855e8` → **open** | 本 repo [No-Go run 29685275310](https://github.com/419vive/partnerops-release-qa/actions/runs/29685275310)：API 7 passed、Web 6 failed |
+| [QA-001](docs/defects/QA-001-dbal4-migration.md) | DBAL 4 移除 `getName()`，乾淨 migration fatal | `7079d99` → `6aa9546` | [affected run 29640902228](https://github.com/419vive/partnerops/actions/runs/29640902228)；fixed migration step [29641007621](https://github.com/419vive/partnerops/actions/runs/29641007621)；dedicated pair [29685454964](https://github.com/419vive/partnerops-release-qa/actions/runs/29685454964) passed |
+| [QA-002](docs/defects/QA-002-idempotency-replay.md) | JSONB 重排 key，破壞 byte-identical replay | `6aa9546` → `c4e794a` | fixed predecessor/replay gates [29642501363](https://github.com/419vive/partnerops/actions/runs/29642501363)；dedicated pair [29685454964](https://github.com/419vive/partnerops-release-qa/actions/runs/29685454964) passed |
+| [QA-003](docs/defects/QA-003-container-dotenv.md) | production image build 依賴被排除的 `.env` | `c4e794a` → `5c855e8` | [affected run 29642501363](https://github.com/419vive/partnerops/actions/runs/29642501363)；[fixed run 29642823042](https://github.com/419vive/partnerops/actions/runs/29642823042)；dedicated pair [29685454964](https://github.com/419vive/partnerops-release-qa/actions/runs/29685454964) passed |
 
 QA-001–003 已有 fixed revision；QA-004 是本輪新發現且仍 open。這些都是公開 CI/release defect；沒有資料支持 production incident、客戶事故或 SLA 影響，因此不做這些宣稱。
 
@@ -73,9 +73,9 @@ npm run qa:release
 | Web 手動／自動與整合／回歸 | 三桌面 browser、角色流程、historical fixed regression |
 | Android／iOS 平台概念 | Pixel／iPhone **mobile-web emulation**；沒有聲稱 native／真機 |
 | API 測試 | 認證、RFC 9457、tenant isolation、raw-byte idempotency、409 conflict |
-| SQL 與後端資料驗證 | PostgreSQL ownership、status、audit、idempotency、validated constraints |
+| SQL 與後端資料驗證 | PostgreSQL assertions 已實作；本輪因 QA-004 fail-fast 維持 not-run |
 | 缺陷追蹤與修復驗證 | 三份 affected/fixed records，加一份本輪 open blocker、精確 signature、公開 runs |
-| 測試報告 | HTML、JUnit、trace/screenshot、SQL output 與 reviewed release decision |
+| 測試報告 | HTML、JUnit、trace／screenshot 與 reviewed No-Go report 已留存；SQL output 待 blocker 修復後完整回歸 |
 
 ## 證據與文件
 

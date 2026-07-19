@@ -2,7 +2,7 @@
 
 | 欄位 | 內容 |
 |---|---|
-| 狀態 | Fixed；upstream predecessor migration 與 raw-replay regression passed；dedicated affected/fixed portfolio run 待發布後留存 |
+| 狀態 | Fixed；upstream predecessor/raw-replay regression 與 dedicated affected/fixed persistence gate passed |
 | Severity | **S2 High** — 對外冪等契約不一致，阻擋 API release |
 | 類型 | API contract／PostgreSQL persistence |
 | 重現案例 | DEF-002、API-006 |
@@ -67,11 +67,12 @@ Fixed revision 新增 forward migration `Version20260718000100`，把 cached res
    - `Run backend test suite`（包含第一次 body 與 19 次 replay 的 raw response equality）
 2. 該 run 的整體 conclusion 是 failure，但失敗發生在後面的 `Build production container`，signature 是 QA-003 的 missing `.env`，不是 QA-002。上述 QA-002 fixed gates 因此是 **PASS**，但不能把 intermediate revision 寫成整體 Go。
 3. [Final upstream CI run 29642823042](https://github.com/419vive/partnerops/actions/runs/29642823042) 對最終 SHA 再次通過 predecessor upgrade、migration invariants、backend suite 與其餘完整 gates，run conclusion 為 success。
+4. [Portfolio run 29685454964](https://github.com/419vive/partnerops-release-qa/actions/runs/29685454964) 在 affected JSONB schema 取得 controlled exit `42` 與 exact signature，fixed JSON schema 對同一 PHP/PDO raw-body gate 通過；artifact：[`qa-002-idempotency-replay-29685454964`](https://github.com/419vive/partnerops-release-qa/actions/runs/29685454964/artifacts/8441923864)。
 
-獨立 portfolio workflow 的 `idempotency-replay` job 會以同一個 PHP/PDO behavioral gate 執行 `Reproduce affected and verify fixed raw replay gate`；affected 只有在 schema 為 `jsonb`、JSON 值相同但 key order／raw bytes 改變時，才以受控 exit `42` 與 exact signature 算重現。發布後的 run URL 才是 affected/full-pair 的權威 portfolio execution evidence。
+獨立 portfolio workflow 的 `idempotency-replay` job 已以同一個 PHP/PDO behavioral gate 執行 `Reproduce affected and verify fixed raw replay gate`；affected 只有在 schema 為 `jsonb`、JSON 值相同但 key order／raw bytes 改變時，才以受控 exit `42` 與 exact signature 算重現。這是 persistence-level behavioral gate，不冒充完整 affected HTTP stack run。
 
 ## 證據界線與限制
 
 - [Intermediate upstream run 29641007621](https://github.com/419vive/partnerops/actions/runs/29641007621) 在 schema sync gate 已失敗，沒有跑到 raw replay；它**不是** QA-002 affected failure evidence，僅用來辨識 affected revision 的 CI 邊界。
-- Run 29642501363 以 fixed revision 內的 deterministic predecessor simulation 證明 `jsonb` 重排與 forward migration；affected SHA 本身的 red execution 必須由獨立 historical workflow 留存，不能以 source diff 冒充。
+- Run 29642501363 以 fixed revision 內的 deterministic predecessor simulation 證明 `jsonb` 重排與 forward migration；affected SHA 本身的 red execution 現已由 run 29685454964 的獨立 historical workflow 留存，而非以 source diff 冒充。
 - 本 defect 是 raw HTTP contract 差異；不宣稱產生重複資料、金額錯誤、客戶事故或 production 影響。

@@ -8,6 +8,7 @@
 | 發現案例 | WEB-001、WEB-002、MWEB-001 |
 | Affected revision | [`5c855e8428c48fccfeadac7d4f24b0a3e7ac1c65`](https://github.com/419vive/partnerops/commit/5c855e8428c48fccfeadac7d4f24b0a3e7ac1c65) |
 | 發現 run | [Release QA 29684970834](https://github.com/419vive/partnerops-release-qa/actions/runs/29684970834) |
+| 確認 run | [Release QA 29685275310](https://github.com/419vive/partnerops-release-qa/actions/runs/29685275310) — 同一 7 pass／6 fail signature；[artifact](https://github.com/419vive/partnerops-release-qa/actions/runs/29685275310/artifacts/8441894739) |
 
 ## 摘要與影響
 
@@ -73,4 +74,4 @@ Fixtures 與 API request audits 都帶有非空 metadata，解釋了 migration�
 3. Pixel／iPhone mobile-web 的 MWEB-001。
 4. WEB-002、DB-001 與完整 `qa:release` regression。
 
-目前沒有 fixed revision，故 retest 狀態是 **not-run**；release decision 維持 **No-Go**。
+受測 release 基線目前沒有已完成驗證的 fixed revision，故 retest 狀態是 **not-run**；release decision 維持 **No-Go**。

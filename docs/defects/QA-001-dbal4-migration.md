@@ -2,7 +2,7 @@
 
 | 欄位 | 內容 |
 |---|---|
-| 狀態 | Fixed；defect-specific retest passed，最終版本完整回歸 passed |
+| 狀態 | Fixed；upstream defect-specific retest 與 dedicated affected/fixed pair passed |
 | Severity | **S2 High** — 新環境無法建立 schema，直接阻擋版本部署／驗證 |
 | 類型 | Migration compatibility／release blocker |
 | 重現案例 | DEF-001 |
@@ -71,12 +71,12 @@ $this->connection->getDatabasePlatform() instanceof PostgreSQLPlatform
 2. [Fixed-revision upstream CI run 29641007621](https://github.com/419vive/partnerops/actions/runs/29641007621) 用相同 migration command 成功執行 `Version20260718000000`：1 個 migration、57 個 SQL queries，並通過 `up-to-date`。這證明 QA-001 的 defect-specific retest **PASS**。
 3. Run 29641007621 的整體 conclusion 仍為 failure，原因是後續 `doctrine:schema:validate` 回報 schema sync 差異；那不是 `getName()` signature，也不能寫成 QA-001 修復後整體 release 已綠。
 4. [Final upstream CI run 29642823042](https://github.com/419vive/partnerops/actions/runs/29642823042) 在最終 SHA 再次通過 migration、migration invariants、published predecessor upgrade 與完整後續 gates，run conclusion 為 success。
+5. [Portfolio run 29685454964](https://github.com/419vive/partnerops-release-qa/actions/runs/29685454964) 以 affected SHA 重現 exact `getName()` signature，並使 fixed SHA 的相同 migration command 通過；sanitized logs 與 outcome 保存於 [`qa-001-dbal-migration-29685454964`](https://github.com/419vive/partnerops-release-qa/actions/runs/29685454964/artifacts/8441925367)。
 
-獨立 portfolio workflow 的 `dbal-migration` job 會執行 `Reproduce affected DBAL migration failure` 與 `Verify fixed DBAL migration gate`；affected 若通過或出現不同 signature，job 必須失敗，不能把環境漂移誤報為成功重現。
+獨立 portfolio workflow 的 `dbal-migration` job 已執行 `Reproduce affected DBAL migration failure` 與 `Verify fixed DBAL migration gate`；affected 出現指定 signature、fixed gate exit `0`，job conclusion 為 success。workflow 仍會在 affected 意外通過或出現不同 signature 時失敗，避免把環境漂移誤報為成功重現。
 
 ## Retest 限制
 
 - Run 29641007621 只證明本 defect 的 migration failure 已移除，不代表該 intermediate revision 可放行。
 - 今日重新執行 affected SHA 可能受到 base image／package registry／runner 漂移影響；不同 failure 不算 QA-001 reproduced。
 - 本案例只驗證 PostgreSQL migration compatibility，不外推到其他資料庫，也不推論 production 使用狀況。
-

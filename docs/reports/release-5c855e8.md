@@ -1,10 +1,12 @@
 # Release QA Report — PartnerOps `5c855e8`
 
-**受測系統**：[419vive/partnerops](https://github.com/419vive/partnerops)  
-**受測版本**：[`5c855e8428c48fccfeadac7d4f24b0a3e7ac1c65`](https://github.com/419vive/partnerops/commit/5c855e8428c48fccfeadac7d4f24b0a3e7ac1c65)  
-**執行證據**：[Release QA run 29684970834](https://github.com/419vive/partnerops-release-qa/actions/runs/29684970834)  
-**報告時間**：2026-07-19 19:28 GMT+8  
-**資料**：公開、可重建的合成 fixtures  
+**受測系統**：[419vive/partnerops](https://github.com/419vive/partnerops)<br>
+**受測版本**：[`5c855e8428c48fccfeadac7d4f24b0a3e7ac1c65`](https://github.com/419vive/partnerops/commit/5c855e8428c48fccfeadac7d4f24b0a3e7ac1c65)<br>
+**執行證據**：[Release QA run 29685275310](https://github.com/419vive/partnerops-release-qa/actions/runs/29685275310)<br>
+**QA harness revision**：[`78bdbf8ab7652893f9ffcfd58064f6cb34198b98`](https://github.com/419vive/partnerops-release-qa/commit/78bdbf8ab7652893f9ffcfd58064f6cb34198b98)<br>
+**歷史缺陷證據**：[Historical Defects run 29685454964](https://github.com/419vive/partnerops-release-qa/actions/runs/29685454964)，harness [`a609e5b9b7e861a13b9e9409628b3df1ca4575ab`](https://github.com/419vive/partnerops-release-qa/commit/a609e5b9b7e861a13b9e9409628b3df1ca4575ab)<br>
+**報告時間**：2026-07-19 19:40 GMT+8<br>
+**資料**：公開、可重建的合成 fixtures<br>
 **判斷**：**NO-GO — QA-004 是 S2 release blocker；SQL scope 因 fail-fast 維持 not-run**
 
 ## Executive summary
@@ -24,9 +26,9 @@ GitHub-hosted Ubuntu runner 成功驗證 full SHA、build SUT、重建 PostgreSQ
 | Desktop Web | 0 | 4 | 0 | 0 | Chromium WEB-001/002、Firefox WEB-001、WebKit WEB-001 |
 | Mobile web emulation | 0 | 2 | 0 | 0 | Pixel 7、iPhone 13 MWEB-001 |
 | PostgreSQL DB-001 assertions | 0 | 0 | 0 | 1 | Not run after blocking Playwright exit 1 |
-| Historical affected/fixed pairs | 0 | 0 | 0 | 3 | Separate manual workflow pending |
+| Historical affected/fixed pairs | 3 | 0 | 0 | 0 | [Run 29685454964](https://github.com/419vive/partnerops-release-qa/actions/runs/29685454964)；三個 sanitized artifacts |
 
-Playwright JUnit totals：**13 tests、7 passed、6 failed、0 skipped、0 errors，53.800 秒**。整個 job 3 分 44 秒；HTML、JUnit、6 組 screenshot／trace／error context、sanitized Compose log 與 SUT revision 均上傳為 `release-qa-29684970834` artifact。
+Playwright JUnit totals：**13 tests、7 passed、6 failed、0 skipped、0 errors，27.433 秒**。整個 job 3 分 18 秒；HTML、JUnit、6 組 screenshot／trace／error context、sanitized Compose log 與 SUT revision 均上傳為 [`release-qa-29685275310`](https://github.com/419vive/partnerops-release-qa/actions/runs/29685275310/artifacts/8441894739) artifact；依 fail-fast contract 沒有 SQL output。
 
 ## Failure signature and impact
 
@@ -52,13 +54,15 @@ Failing row ... authentication.succeeded ... user_session ... [] ...
 
 | Finding | Severity | Current status | Evidence |
 |---|---|---|---|
-| [QA-004 authentication audit metadata](../defects/QA-004-auth-audit-metadata.md) | S2 High | **Open；retest not-run** | Current No-Go run 29684970834 |
-| [QA-001 DBAL 4 migration](../defects/QA-001-dbal4-migration.md) | S2 High | Fixed；upstream defect-specific retest passed | Runs 29640902228／29641007621／29642823042 |
-| [QA-002 idempotency raw replay](../defects/QA-002-idempotency-replay.md) | S2 High | Fixed；upstream fixed gates passed | Runs 29642501363／29642823042；dedicated pair pending |
-| [QA-003 container dotenv](../defects/QA-003-container-dotenv.md) | S2 High | Fixed；upstream build/runtime gates passed | Runs 29642501363／29642823042 |
+| [QA-004 authentication audit metadata](../defects/QA-004-auth-audit-metadata.md) | S2 High | **Open；retest not-run** | Current No-Go run [29685275310](https://github.com/419vive/partnerops-release-qa/actions/runs/29685275310) |
+| [QA-001 DBAL 4 migration](../defects/QA-001-dbal4-migration.md) | S2 High | Fixed；upstream 與 dedicated pair passed | Runs 29640902228／29641007621／29642823042／[29685454964](https://github.com/419vive/partnerops-release-qa/actions/runs/29685454964) |
+| [QA-002 idempotency raw replay](../defects/QA-002-idempotency-replay.md) | S2 High | Fixed；upstream 與 dedicated pair passed | Runs 29642501363／29642823042／[29685454964](https://github.com/419vive/partnerops-release-qa/actions/runs/29685454964) |
+| [QA-003 container dotenv](../defects/QA-003-container-dotenv.md) | S2 High | Fixed；upstream 與 dedicated pair passed | Runs 29642501363／29642823042／[29685454964](https://github.com/419vive/partnerops-release-qa/actions/runs/29685454964) |
 | OBS-001 quickstart dashboard wording | Observation | Open documentation/testability gap | Automated delta follows implementation, not stale wording |
 
 歷史 expected failures 不納入 current release failure count；QA-004 則是 final revision 的實際 blocker。
+
+[Historical Defects run 29685454964](https://github.com/419vive/partnerops-release-qa/actions/runs/29685454964) 的 3/3 jobs 全部通過，證明 QA-001–003 的 affected exact signatures 與 fixed gates。這項獨立歷史證據不改變最終 SUT 的 No-Go：QA-004 仍 open，DB-001 仍 not-run。
 
 ## Decision
 
@@ -88,4 +92,6 @@ Go 必須同時滿足：
 
 ## Harness correction history
 
-首次 run [29684910752](https://github.com/419vive/partnerops-release-qa/actions/runs/29684910752) 在產品啟動前發現 shell contract 假設 macOS PATH 且繼承 `KEEP_SUT_RUNNING`；commit `4adb66c` 隔離 runner environment 後，run 29684970834 的 harness gate 全綠。該次是 QA harness defect，不是 PartnerOps finding，兩者在本報告分開計算。
+首次 release run [29684910752](https://github.com/419vive/partnerops-release-qa/actions/runs/29684910752) 在產品啟動前發現 shell contract 假設 macOS PATH 且繼承 `KEEP_SUT_RUNNING`；commit `4adb66c` 隔離 runner environment 後，run 29684970834 的 harness gate 通過並發現 QA-004。commit `78bdbf8` 將登入 failure 收斂為明確的 HTTP 500 assertion，current run 29685275310 再次取得同一 7 pass／6 fail 產品 signature。這些 harness 修正不計為 PartnerOps finding。
+
+首次 historical run [29685282485](https://github.com/419vive/partnerops-release-qa/actions/runs/29685282485) 未被接受為 pair evidence：QA-001／QA-002 因 Doctrine test database 名稱重複 suffix 而未完成 fixed gates，QA-003 passed。commit `a609e5b` 修正 base database URL 後，由 successful run [29685454964](https://github.com/419vive/partnerops-release-qa/actions/runs/29685454964) supersede；前者是 harness execution failure，不計為 PartnerOps regression。

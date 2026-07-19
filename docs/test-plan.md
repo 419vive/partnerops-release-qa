@@ -154,4 +154,4 @@ PartnerOps 是多客戶 B2B 服務請求平台。這次測試不追求最大案�
 3. WebKit 是 Playwright browser engine，不等同實體 Safari 裝置；mobile projects 也不是 native 或真機覆蓋。
 4. 歷史 affected commit 可能受今日 runner／上游 image 變化影響；只有觀察到文件指定 signature 才算重現，否則標為受限並調查。
 5. 本計畫不根據公開 commit 推論曾發生 production incident；三個 defect 都是 release／CI 證據。
-6. Final release run [29684970834](https://github.com/419vive/partnerops-release-qa/actions/runs/29684970834) 發現 [QA-004](./defects/QA-004-auth-audit-metadata.md)：空 audit metadata 被保存為 JSON array，合法 Web 登入在 audit insert 回 500。此 S2 finding 使目前決策為 No-Go；SQL scope 因 fail-fast 保持 not-run。
+6. Final release run [29685275310](https://github.com/419vive/partnerops-release-qa/actions/runs/29685275310) 再次確認 [QA-004](./defects/QA-004-auth-audit-metadata.md)：空 audit metadata 被保存為 JSON array，合法 Web 登入在 audit insert 回 500。此 S2 finding 使目前決策為 No-Go；SQL scope 因 fail-fast 保持 not-run。

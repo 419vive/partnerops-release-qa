@@ -4,7 +4,7 @@
 **案例定義**：[test-cases.md](./test-cases.md)  
 **受測版本**：[`5c855e8428c48fccfeadac7d4f24b0a3e7ac1c65`](https://github.com/419vive/partnerops/commit/5c855e8428c48fccfeadac7d4f24b0a3e7ac1c65)
 
-本矩陣只宣告覆蓋關係，不把 planned case 當成 passed。最新 execution outcome 必須來自同一 full SHA 的 JUnit、SQL output、GitHub Actions 與 `docs/reports/release-5c855e8.md`；required case 若是 skipped／not-run，決策保持 incomplete。
+本矩陣只宣告覆蓋關係，不把 planned case 當成 passed。最新 execution outcome 必須來自同一 full SHA 的 JUnit、SQL output（若已執行）或 report 中明確的 not-run 記錄、GitHub Actions 與 `docs/reports/release-5c855e8.md`；required case 若是 skipped／not-run，決策保持 incomplete。
 
 ## 高風險項目
 
@@ -77,4 +77,4 @@ OBS-001（quickstart 對 overdue count 的描述與實作不一致）只記為�
 - Case ID 必須出現在 Playwright title、SQL assertion section、defect job 或 reviewed report 中，讓 JUnit／log 能反查本矩陣。
 - Final release evidence 與 historical expected-failure evidence分開；歷史紅燈不得算進 current release failure count。
 - QA-001 的 upstream affected/fixed evidence 是 [29640902228](https://github.com/419vive/partnerops/actions/runs/29640902228)／[29641007621](https://github.com/419vive/partnerops/actions/runs/29641007621)；QA-002 fixed evidence 是 [29642501363](https://github.com/419vive/partnerops/actions/runs/29642501363)；QA-003 affected/fixed evidence 是 [29642501363](https://github.com/419vive/partnerops/actions/runs/29642501363)／[29642823042](https://github.com/419vive/partnerops/actions/runs/29642823042)。各 run 的限制以 defect record 為準。
-- 專用 historical workflow 發布後，affected/fixed pair 的 live run URL 應追加到相應 defect record；沒有 live run 時維持 not-run，不得以 source diff 取代 execution result。
+- 專用 [Historical Defects run 29685454964](https://github.com/419vive/partnerops-release-qa/actions/runs/29685454964) 已通過三組 affected/fixed pairs；各 exact signature、fixed outcome 與 artifact URL 已追加到相應 defect record，不以 source diff 取代 execution result。
