@@ -31,7 +31,7 @@ jobs:
       APP_ENV: test
       APP_SECRET: qa-synthetic-app-secret
       APP_TIMEZONE: Asia/Taipei
-      DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/partnerops_test?serverVersion=16&charset=utf8"
+      DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/partnerops?serverVersion=16&charset=utf8"
       DEFAULT_URI: http://127.0.0.1:8080
 
     steps:
@@ -152,7 +152,7 @@ jobs:
       APP_ENV: test
       APP_SECRET: qa-synthetic-app-secret
       APP_TIMEZONE: Asia/Taipei
-      DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/partnerops_test?serverVersion=16&charset=utf8"
+      DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/partnerops?serverVersion=16&charset=utf8"
       DEFAULT_URI: http://127.0.0.1:8080
 
     steps:
