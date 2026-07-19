@@ -1,15 +1,30 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
 
 const script = 'scripts/qa.sh';
 
 function run(action, env = {}) {
-  return spawnSync('bash', [script, action], {
+  return spawnSync('/bin/bash', [script, action], {
     cwd: process.cwd(),
     encoding: 'utf8',
     env: { ...process.env, ...env },
   });
+}
+
+function pathWithOnly(...commands) {
+  const directory = mkdtempSync(join(tmpdir(), 'partnerops-qa-path-'));
+
+  for (const command of commands) {
+    const lookup = spawnSync('/bin/sh', ['-c', `command -v ${command}`], { encoding: 'utf8' });
+    assert.equal(lookup.status, 0, lookup.stderr);
+    symlinkSync(lookup.stdout.trim(), join(directory, command));
+  }
+
+  return directory;
 }
 
 test('ENV-001 help documents the owned lifecycle without requiring Docker', () => {
@@ -21,7 +36,13 @@ test('ENV-001 help documents the owned lifecycle without requiring Docker', () =
 });
 
 test('ENV-002 up fails before mutation when Docker is unavailable', () => {
-  const result = run('up', { PATH: '/usr/bin:/bin' });
+  const isolatedPath = pathWithOnly('dirname', 'git');
+  let result;
+  try {
+    result = run('up', { PATH: isolatedPath });
+  } finally {
+    rmSync(isolatedPath, { recursive: true, force: true });
+  }
 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /docker is required/i);
@@ -35,7 +56,7 @@ test('ENV-003 empty Compose project name is rejected', () => {
 });
 
 test('ENV-004 dry run pins the public SUT and scopes destructive commands', () => {
-  const result = run('release', { QA_DRY_RUN: '1' });
+  const result = run('release', { KEEP_SUT_RUNNING: '0', QA_DRY_RUN: '1' });
 
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /5c855e8428c48fccfeadac7d4f24b0a3e7ac1c65/);
